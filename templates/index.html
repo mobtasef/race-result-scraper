@@ -41,6 +41,31 @@
       --sh1:          0 2px 6px rgba(26,98,212,.09), 0 6px 20px rgba(26,98,212,.07);
     }
 
+    [data-theme="dark"] {
+      --primary:      #5B9EFF;
+      --primary-c:    rgba(91,158,255,.15);
+      --primary-hov:  #7BB3FF;
+      --on-primary:   #0D1726;
+      --bg:           #0F1117;
+      --surface:      #161B26;
+      --surf-v:       #1C2333;
+      --surf-c:       #1E2840;
+      --on-surface:   #E2E8F4;
+      --muted:        #7A8EAD;
+      --muted2:       #4D607A;
+      --outline:      #2A3650;
+      --outline-v:    #1F2D44;
+      --green:        #34D399;
+      --green-c:      rgba(52,211,153,.12);
+      --red:          #F87171;
+      --red-c:        rgba(248,113,113,.12);
+      --orange:       #FBBF24;
+      --orange-c:     rgba(251,191,36,.12);
+      --gray-c:       rgba(122,142,173,.1);
+      --sh0:          0 1px 3px rgba(0,0,0,.3), 0 2px 6px rgba(0,0,0,.2);
+      --sh1:          0 3px 10px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
+    }
+
     *, *::before, *::after { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; }
 
@@ -55,6 +80,26 @@
 
     /* ── Layout ───────────────────────────────────────── */
     .page { max-width: 1280px; margin: 0 auto; padding: 40px 24px 80px; }
+
+    /* ── Theme toggle ─────────────────────────────────── */
+    .theme-toggle {
+      margin-left: auto;
+      background: var(--surf-v);
+      border: 1px solid var(--outline-v);
+      border-radius: 20px;
+      color: var(--muted);
+      font-size: 13px;
+      padding: 6px 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background .2s, border-color .2s, color .2s;
+      font-family: var(--sans);
+      font-weight: 500;
+    }
+    .theme-toggle:hover { background: var(--surf-c); color: var(--on-surface); }
+    .theme-toggle svg { flex-shrink: 0; }
 
     /* ── Header ───────────────────────────────────────── */
     .hdr {
@@ -578,13 +623,19 @@
   <header class="hdr">
     <div class="hdr-mark">
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <path d="M4 3v16M4 4h14l-3 4.5 3 4.5H4" stroke="#1A62D4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M4 3v16M4 4h14l-3 4.5 3 4.5H4" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </div>
     <div>
       <div class="hdr-title">Race <span>Results</span></div>
       <div class="hdr-sub">feibot.com scraper</div>
     </div>
+    <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle dark mode">
+      <svg id="themeIcon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+      <span id="themeLabel">Dark</span>
+    </button>
   </header>
 
   <!-- Recent events -->
@@ -886,6 +937,28 @@
   }
 
   window.addEventListener('load', () => loadRecentEvents(true));
+
+  // ── Theme ─────────────────────────────────────────────────────────────────
+  const SUN = `<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>`;
+  const MOON = `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>`;
+
+  function applyTheme(dark) {
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    document.getElementById('themeIcon').innerHTML = dark ? SUN : MOON;
+    document.getElementById('themeLabel').textContent = dark ? 'Light' : 'Dark';
+  }
+
+  function toggleTheme() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    localStorage.setItem('theme', isDark ? 'light' : 'dark');
+    applyTheme(!isDark);
+  }
+
+  (function initTheme() {
+    const saved = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    applyTheme(saved ? saved === 'dark' : prefersDark);
+  })();
 </script>
 </body>
 </html>
