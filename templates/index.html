@@ -581,7 +581,7 @@
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
 <script>
-  const COL = { serial:0, bib:1, name:2, gender:3, status:4, gun:5, net:6, overallRank:7, genderRank:8 };
+  const COL = { overallRank:0, bib:1, name:2, gender:3, status:4, gun:5, net:6, genderRank:7 };
 
   const tables = {};
   const counts = {};
@@ -639,21 +639,20 @@
     pane.id = `pane-${safeId}`;
     pane.innerHTML = `<table id="tbl-${safeId}" class="w-100">
       <thead><tr>
-        <th>#</th><th>Bib</th><th>Name</th><th>Gender</th><th>Status</th>
-        <th>Gun Time</th><th>Net Time</th><th>Rank</th><th>Gender Rank</th>
+        <th>Rank</th><th>Bib</th><th>Name</th><th>Gender</th><th>Status</th>
+        <th>Gun Time</th><th>Net Time</th><th>Gender Rank</th>
       </tr></thead><tbody></tbody></table>`;
     document.getElementById('categoryTabContent').appendChild(pane);
 
     const dt = $(`#tbl-${safeId}`).DataTable({
       columns: [
-        { data:null, orderable:false, searchable:false, render:(_,__,___,meta) => meta.row+1 },
+        { data:'overall_gun_rank', type:'num', render: v => v ? (parseInt(v)||99999) : 99999 },
         { data:'bib' },
         { data:'name' },
         { data:'gender' },
         { data:'status', render: v => `<span class="status-${v||''}">${v||''}</span>` },
         { data:'gun_time' },
         { data:'net_time' },
-        { data:'overall_gun_rank', type:'num', render: v => v ? (parseInt(v)||99999) : 99999 },
         { data:'gender_gun_rank',  type:'num', render: v => v ? (parseInt(v)||99999) : 99999 },
       ],
       pageLength: 100,
