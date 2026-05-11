@@ -1,0 +1,17 @@
+# Cache & runtime data
+race_cache.json
+__pycache__/
+*.pyc
+*.pyo
+
+# Python env
+.venv/
+venv/
+env/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/

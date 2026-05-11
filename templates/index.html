@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Race Result Scraper</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
+  <style>
+    body { background: #f8f9fa; }
+    .card { border: none; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    .status-Finisher { color: #198754; font-weight: 600; }
+    .status-DNF { color: #dc3545; }
+    .status-DNS { color: #6c757d; }
+    .status-DQ  { color: #fd7e14; }
+    .tab-badge { font-size: .7rem; margin-left: 4px; }
+  </style>
+</head>
+<body>
+<div class="container py-5">
+  <h3 class="mb-1 fw-bold">Race Result Scraper</h3>
+  <p class="text-muted mb-4">Paste a feibot.com race URL to fetch all participant results.</p>
+
+  <!-- Recent events -->
+  <div id="recentSection" class="mb-4" style="display:none">
+    <h6 class="fw-semibold text-muted mb-2">Recent Events</h6>
+    <div id="recentCards" class="d-flex flex-wrap gap-2"></div>
+  </div>
+
+  <!-- Input card -->
+  <div class="card p-4 mb-4">
+    <div class="row g-3 align-items-end">
+      <div class="col-12 col-md-4">
+        <label class="form-label fw-semibold">Race URL</label>
+        <input id="raceUrl" type="url" class="form-control"
+               placeholder="https://time.feibot.com/live-wire/race-page/3213/...">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label fw-semibold">Min bib</label>
+        <input id="minBib" type="number" class="form-control" value="1" min="1" max="99999">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label fw-semibold">Max bib</label>
+        <input id="maxBib" type="number" class="form-control" value="9999" min="1" max="99999">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label fw-semibold">Concurrency</label>
+        <input id="concurrency" type="number" class="form-control" value="50" min="1" max="200">
+      </div>
+      <div class="col-6 col-md-2 d-flex gap-2">
+        <button id="scrapeBtn" class="btn btn-primary flex-grow-1" onclick="startScrape()">Scrape</button>
+        <button id="cancelBtn" class="btn btn-outline-danger" style="display:none" onclick="cancelScrape()">Cancel</button>
+      </div>
+    </div>
+    <div id="errorMsg" class="alert alert-danger mt-3 mb-0" style="display:none"></div>
+  </div>
+
+  <!-- Progress card -->
+  <div id="progressSection" class="card p-4 mb-4" style="display:none">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="fw-semibold" id="progressLabel">Scanning bibs...</span>
+      <span class="text-muted small" id="foundLabel">0 results found</span>
+    </div>
+    <div class="progress mb-2" style="height:10px">
+      <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+           role="progressbar" style="width:0%"></div>
+    </div>
+    <div class="d-flex justify-content-between align-items-center">
+      <span class="text-muted small" id="progressCount">0 / 0 scanned</span>
+      <button id="exportBtn" class="btn btn-sm btn-success" style="display:none" onclick="exportCsv()">Export CSV</button>
+    </div>
+  </div>
+
+  <!-- Filter bar (always in DOM so filter elements are always reachable) -->
+  <div id="filterBar" class="card p-3 mb-3" style="display:none">
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <span class="fw-semibold me-1">Filter:</span>
+      <select id="filterGender" class="form-select form-select-sm" style="width:auto" onchange="applyFilters()">
+        <option value="">All Genders</option>
+      </select>
+      <select id="filterStatus" class="form-select form-select-sm" style="width:auto" onchange="applyFilters()">
+        <option value="">All Statuses</option>
+      </select>
+      <input id="nameSearch" type="text" class="form-control form-control-sm" style="width:200px"
+             placeholder="Search name / bib..." oninput="applyFilters()">
+      <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="clearFilters()">Clear</button>
+      <span id="filteredCount" class="text-muted small"></span>
+    </div>
+  </div>
+
+  <!-- Category tabs -->
+  <div id="tabsCard" class="card p-3" style="display:none">
+    <ul id="categoryTabs" class="nav nav-tabs mb-3" role="tablist"></ul>
+    <div id="categoryTabContent" class="tab-content"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script>
+  const COL = { bib:0, name:1, gender:2, status:3, gun:4, net:5, overallRank:6, genderRank:7 };
+
+  const tables = {};   // eventName -> DataTable
+  const counts = {};   // eventName -> row count
+  let tabGen = 0;      // incremented each reset to keep IDs unique
+
+  let evtSource = null;
+  let currentJobId = null;
+  let loadedFromCache = false;
+  const seen = { gender: new Set(), status: new Set() };
+
+  // ── Custom filter ────────────────────────────────────────────────────────
+  $.fn.dataTable.ext.search.push(function(_s, data) {
+    const g = document.getElementById('filterGender').value.toLowerCase();
+    const s = document.getElementById('filterStatus').value.toLowerCase();
+    const n = document.getElementById('nameSearch').value.toLowerCase().trim();
+    if (g && data[COL.gender].toLowerCase() !== g) return false;
+    if (s && data[COL.status].replace(/<[^>]+>/g,'').toLowerCase() !== s) return false;
+    if (n && !data[COL.name].toLowerCase().includes(n) && !String(data[COL.bib]).includes(n)) return false;
+    return true;
+  });
+
+  // ── Reset all tables and UI ──────────────────────────────────────────────
+  function resetAll() {
+    Object.values(tables).forEach(t => { try { t.destroy(true); } catch(e) {} });
+    Object.keys(tables).forEach(k => delete tables[k]);
+    Object.keys(counts).forEach(k => delete counts[k]);
+    tabGen++;
+    document.getElementById('categoryTabs').innerHTML = '';
+    document.getElementById('categoryTabContent').innerHTML = '';
+    seen.gender.clear();
+    seen.status.clear();
+    ['filterGender','filterStatus'].forEach(id => {
+      const s = document.getElementById(id);
+      while (s.options.length > 1) s.remove(1);
+    });
+    document.getElementById('nameSearch').value = '';
+    document.getElementById('filteredCount').textContent = '';
+    document.getElementById('filterBar').style.display = 'none';
+    document.getElementById('tabsCard').style.display = 'none';
+  }
+
+  // ── Create one tab + DataTable for an event category ────────────────────
+  function createCategoryTab(eventName) {
+    const safeId = `t${tabGen}_${eventName.replace(/\W/g,'_')}`;
+    const isFirst = Object.keys(tables).length === 0;
+
+    // Tab button
+    const li = document.createElement('li');
+    li.className = 'nav-item';
+    li.innerHTML = `<button class="nav-link${isFirst?' active':''}" id="btn-${safeId}"
+      data-bs-toggle="tab" data-bs-target="#pane-${safeId}" type="button" role="tab">
+      ${eventName} <span class="badge bg-secondary tab-badge" id="badge-${safeId}">0</span>
+    </button>`;
+    document.getElementById('categoryTabs').appendChild(li);
+
+    // Tab pane
+    const pane = document.createElement('div');
+    pane.className = `tab-pane fade${isFirst?' show active':''}`;
+    pane.id = `pane-${safeId}`;
+    pane.innerHTML = `<table id="tbl-${safeId}"
+      class="table table-sm table-striped table-hover mb-0 w-100">
+      <thead class="table-dark"><tr>
+        <th>Bib</th><th>Name</th><th>Gender</th><th>Status</th>
+        <th>Gun Time</th><th>Net Time</th><th>Overall Rank</th><th>Gender Rank</th>
+      </tr></thead><tbody></tbody></table>`;
+    document.getElementById('categoryTabContent').appendChild(pane);
+
+    // Init DataTable (no custom dom, no deferRender — keeps it simple)
+    const dt = $(`#tbl-${safeId}`).DataTable({
+      columns: [
+        { data:'bib' },
+        { data:'name' },
+        { data:'gender' },
+        { data:'status', render: v => `<span class="status-${v||''}">${v||''}</span>` },
+        { data:'gun_time' },
+        { data:'net_time' },
+        { data:'overall_gun_rank', type:'num', render: v => v ? (parseInt(v)||99999) : 99999 },
+        { data:'gender_gun_rank',  type:'num', render: v => v ? (parseInt(v)||99999) : 99999 },
+      ],
+      pageLength: 100,
+      order: [[COL.overallRank,'asc']],
+    });
+    tables[eventName] = dt;
+    counts[eventName] = 0;
+
+    // Fix column widths when tab becomes visible
+    document.getElementById(`btn-${safeId}`).addEventListener('shown.bs.tab', () => {
+      dt.columns.adjust().draw(false);
+      updateFilteredCount();
+    });
+  }
+
+  // ── Route results into per-category tables ───────────────────────────────
+  function routeResults(rows) {
+    const grouped = {};
+    rows.forEach(r => {
+      const ev = r.event || 'Unknown';
+      (grouped[ev] = grouped[ev] || []).push(r);
+    });
+    Object.entries(grouped).forEach(([ev, evRows]) => {
+      if (!tables[ev]) createCategoryTab(ev);
+      tables[ev].rows.add(evRows).draw(false);
+      counts[ev] = (counts[ev]||0) + evRows.length;
+      const badge = document.getElementById(`badge-t${tabGen}_${ev.replace(/\W/g,'_')}`);
+      if (badge) badge.textContent = counts[ev];
+    });
+    document.getElementById('filterBar').style.display = '';
+    document.getElementById('tabsCard').style.display = '';
+    updateFilteredCount();
+  }
+
+  // ── Filters ──────────────────────────────────────────────────────────────
+  function applyFilters() {
+    Object.values(tables).forEach(t => t.draw(false));
+    updateFilteredCount();
+  }
+  function clearFilters() {
+    document.getElementById('filterGender').value = '';
+    document.getElementById('filterStatus').value = '';
+    document.getElementById('nameSearch').value = '';
+    applyFilters();
+  }
+  function updateFilteredCount() {
+    const pane = document.querySelector('#categoryTabContent .tab-pane.active');
+    if (!pane) return;
+    const tbl = pane.querySelector('table');
+    if (!tbl || !$.fn.DataTable.isDataTable(tbl)) return;
+    const info = $(tbl).DataTable().page.info();
+    document.getElementById('filteredCount').textContent =
+      info.recordsDisplay < info.recordsTotal
+        ? `${info.recordsDisplay} of ${info.recordsTotal} shown`
+        : `${info.recordsTotal} total`;
+  }
+  function updateDropdowns(results) {
+    results.forEach(r => {
+      addOption('filterGender', seen.gender, r.gender);
+      addOption('filterStatus', seen.status, r.status);
+    });
+  }
+  function addOption(selectId, set, val) {
+    if (!val || set.has(val)) return;
+    set.add(val);
+    const o = document.createElement('option');
+    o.value = val.toLowerCase(); o.textContent = val;
+    document.getElementById(selectId).appendChild(o);
+  }
+
+  // ── Live scrape ──────────────────────────────────────────────────────────
+  function startScrape() {
+    const url  = document.getElementById('raceUrl').value.trim();
+    const minB = parseInt(document.getElementById('minBib').value) || 1;
+    const maxB = parseInt(document.getElementById('maxBib').value) || 9999;
+    const conc = parseInt(document.getElementById('concurrency').value) || 50;
+    if (!url) { showError('Please enter a race URL.'); return; }
+    hideError();
+    resetAll();
+    loadedFromCache = false;
+    document.getElementById('progressSection').style.display = 'block';
+    document.getElementById('exportBtn').style.display = 'none';
+    document.getElementById('scrapeBtn').disabled = true;
+    document.getElementById('cancelBtn').style.display = 'inline-block';
+    setProgress(0, maxB - minB + 1, 0);
+
+    fetch('/scrape', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({url, min_bib:minB, max_bib:maxB, concurrency:conc}),
+    })
+    .then(r => r.json())
+    .then(({job_id, error}) => {
+      if (error) { showError(error); resetControls(); return; }
+      currentJobId = job_id;
+      evtSource = new EventSource(`/progress/${job_id}`);
+      evtSource.onmessage = onProgress;
+      evtSource.onerror = () => { evtSource.close(); resetControls(); };
+    })
+    .catch(e => { showError(e.message); resetControls(); });
+  }
+
+  function onProgress(e) {
+    const d = JSON.parse(e.data);
+    if (d.error) { showError(d.error); evtSource.close(); resetControls(); return; }
+    setProgress(d.progress, d.total, d.found);
+    if (d.new_results && d.new_results.length) {
+      updateDropdowns(d.new_results);
+      routeResults(d.new_results);
+    }
+    if (d.done) {
+      evtSource.close();
+      document.getElementById('progressLabel').textContent = 'Done!';
+      document.getElementById('progressBar').classList.remove('progress-bar-animated');
+      document.getElementById('exportBtn').style.display = 'inline-block';
+      resetControls();
+      loadRecentEvents();
+    }
+  }
+
+  function setProgress(progress, total, found) {
+    const pct = total > 0 ? Math.round(progress/total*100) : 0;
+    document.getElementById('progressBar').style.width = pct + '%';
+    document.getElementById('progressCount').textContent =
+      `${progress.toLocaleString()} / ${total.toLocaleString()} scanned`;
+    document.getElementById('foundLabel').textContent =
+      `${found} result${found!==1?'s':''} found`;
+  }
+
+  function cancelScrape() {
+    if (currentJobId) fetch(`/cancel/${currentJobId}`, {method:'POST'});
+    if (evtSource) evtSource.close();
+    document.getElementById('progressLabel').textContent = 'Cancelled.';
+    document.getElementById('progressBar').classList.remove('progress-bar-animated');
+    resetControls();
+  }
+
+  function exportCsv() {
+    if (!currentJobId) return;
+    window.location = loadedFromCache
+      ? `/export/cache/${currentJobId}.csv`
+      : `/export/${currentJobId}.csv`;
+  }
+
+  function resetControls() {
+    document.getElementById('scrapeBtn').disabled = false;
+    document.getElementById('cancelBtn').style.display = 'none';
+  }
+  function showError(msg) {
+    const el = document.getElementById('errorMsg');
+    el.textContent = msg; el.style.display = 'block';
+  }
+  function hideError() { document.getElementById('errorMsg').style.display = 'none'; }
+
+  // ── Cache / recent events ────────────────────────────────────────────────
+  function loadRecentEvents(autoLoad) {
+    fetch('/cache').then(r => r.json()).then(events => {
+      const c = document.getElementById('recentCards');
+      c.innerHTML = '';
+      if (!events.length) return;
+      events.forEach((ev, i) => {
+        const card = document.createElement('div');
+        card.className = 'card p-3';
+        card.style.cssText = 'min-width:220px;max-width:280px;cursor:pointer';
+        card.innerHTML = `
+          <div class="fw-semibold small text-truncate" title="${ev.race_name}">${ev.race_name}</div>
+          <div class="text-muted" style="font-size:.75rem">${ev.scraped_at} · ${ev.count} results</div>
+          <div class="mt-1">${(ev.categories||[]).map(c=>`<span class="badge bg-primary me-1">${c}</span>`).join('')}</div>`;
+        card.addEventListener('click', () => loadFromCache(ev.race_id));
+        c.appendChild(card);
+      });
+      document.getElementById('recentSection').style.display = '';
+      if (autoLoad) loadFromCache(events[0].race_id);
+    }).catch(() => {});
+  }
+
+  function loadFromCache(raceId) {
+    hideError();
+    resetAll();
+    loadedFromCache = true;
+    currentJobId = raceId;
+
+    fetch(`/cache/${raceId}`).then(r => r.json()).then(entry => {
+      if (entry.error) { showError(entry.error); return; }
+      document.getElementById('raceUrl').value = entry.url;
+      document.getElementById('progressSection').style.display = 'none';
+      updateDropdowns(entry.results);
+      routeResults(entry.results);
+      document.getElementById('exportBtn').style.display = 'inline-block';
+    }).catch(e => showError(e.message));
+  }
+
+  window.addEventListener('load', () => loadRecentEvents(true));
+</script>
+</body>
+</html>
