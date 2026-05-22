@@ -607,6 +607,25 @@
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
     }
+    .swipe-hint {
+      display: none;
+    }
+    @media (max-width: 600px) {
+      .swipe-hint {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        color: var(--muted);
+        padding: 5px 2px 2px;
+        animation: fadeHint 4s ease forwards;
+      }
+    }
+    @keyframes fadeHint {
+      0%   { opacity: 1; }
+      70%  { opacity: 1; }
+      100% { opacity: 0; pointer-events: none; }
+    }
     table.dataTable {
       border-collapse: collapse !important;
       width: 100% !important;
@@ -908,7 +927,10 @@
     const pane = document.createElement('div');
     pane.className = `tab-pane fade${isFirst?' show active':''}`;
     pane.id = `pane-${safeId}`;
-    pane.innerHTML = `<div class="dt-scroll-wrap"><table id="tbl-${safeId}" class="w-100">
+    pane.innerHTML = `<div class="swipe-hint">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        Swipe left to see timings
+      </div><div class="dt-scroll-wrap"><table id="tbl-${safeId}" class="w-100">
       <thead><tr>
         <th>Rank</th><th>Bib</th><th>Name</th><th>Gender</th><th>Status</th>
         <th>Gun Time</th><th>Net Time</th><th>Gender Rank</th>
