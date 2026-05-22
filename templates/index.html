@@ -214,6 +214,29 @@
     }
     .rc-badge-action:hover { background: var(--primary-hov); transform: scale(1.04); }
 
+    /* ── Fetch toggle ─────────────────────────────────── */
+    .fetch-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: var(--surface);
+      border: 1px solid var(--outline);
+      border-radius: var(--r-md);
+      padding: 9px 15px;
+      font-family: var(--display);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--on-surface);
+      cursor: pointer;
+      transition: border-color .18s, box-shadow .18s;
+      margin-bottom: 6px;
+      box-shadow: var(--sh0);
+    }
+    .fetch-toggle:hover { border-color: var(--primary); box-shadow: var(--sh1); }
+    .fetch-toggle.open { border-color: var(--primary); color: var(--primary); }
+    .fetch-chevron { transition: transform .2s; }
+    .fetch-toggle.open .fetch-chevron { transform: rotate(180deg); }
+
     /* ── Input panel ──────────────────────────────────── */
     .panel {
       background: var(--surface);
@@ -705,6 +728,13 @@
   </div>
 
   <!-- Input panel -->
+  <button class="fetch-toggle" id="fetchToggle" onclick="toggleFetchPanel()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    Fetch any event
+    <svg class="fetch-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+
+  <div id="fetchPanel" style="display:none">
   <div class="panel" style="margin-top:4px">
     <div class="fields">
       <div class="f f-url">
@@ -745,6 +775,7 @@
 
     <div id="errorMsg" style="display:none"></div>
   </div>
+  </div><!-- /fetchPanel -->
 
   <!-- Progress -->
   <div id="progressSection" style="display:none">
@@ -915,6 +946,14 @@
   }
 
   // ── Advanced toggle ──────────────────────────────────────────────────────
+  function toggleFetchPanel() {
+    const btn   = document.getElementById('fetchToggle');
+    const panel = document.getElementById('fetchPanel');
+    const open  = panel.style.display !== 'none' && panel.style.display !== '';
+    panel.style.display = open ? 'none' : 'block';
+    btn.classList.toggle('open', !open);
+  }
+
   function toggleAdv() {
     const btn = document.getElementById('advToggle');
     const panel = document.getElementById('advFields');
@@ -1013,6 +1052,11 @@
   }
 
   function scrape75km(url) {
+    const panel = document.getElementById('fetchPanel');
+    if (panel.style.display === 'none' || panel.style.display === '') {
+      panel.style.display = 'block';
+      document.getElementById('fetchToggle').classList.add('open');
+    }
     document.getElementById('raceUrl').value = url;
     document.getElementById('minBib').value = 7000;
     document.getElementById('maxBib').value = 8000;
