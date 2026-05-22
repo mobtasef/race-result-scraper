@@ -617,7 +617,11 @@
         gap: 5px;
         font-size: 11px;
         color: var(--muted);
-        padding: 5px 2px 2px;
+        padding: 5px 2px 4px;
+        opacity: 0;
+        transition: opacity .3s;
+      }
+      .swipe-hint.visible {
         animation: fadeHint 4s ease forwards;
       }
     }
@@ -697,8 +701,9 @@
 
     /* Mobile table */
     @media (max-width: 600px) {
+      table.dataTable { min-width: unset !important; width: 100% !important; }
       table.dataTable thead th,
-      table.dataTable tbody td { padding: 8px 10px !important; }
+      table.dataTable tbody td { padding: 8px 8px !important; }
       table.dataTable tbody td { white-space: nowrap; font-size: 12px; }
       /* Hide Bib, Gender, Status, Gender Rank on mobile */
       table.dataTable thead th:nth-child(2),
@@ -709,6 +714,16 @@
       table.dataTable tbody td:nth-child(5),
       table.dataTable thead th:nth-child(8),
       table.dataTable tbody td:nth-child(8) { display: none; }
+      /* Name column: fixed width with ellipsis */
+      table.dataTable thead th:nth-child(3),
+      table.dataTable tbody td:nth-child(3) {
+        max-width: 130px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      /* Rank column tighter */
+      table.dataTable thead th:nth-child(1),
+      table.dataTable tbody td:nth-child(1) { width: 42px; }
     }
 
     /* Status chips */
@@ -974,6 +989,12 @@
     document.getElementById('filterBar').style.display = '';
     document.getElementById('tabsCard').style.display = '';
     updateFilteredCount();
+    // Trigger swipe hint after results appear
+    const hint = document.querySelector('.swipe-hint');
+    if (hint && !hint.classList.contains('shown')) {
+      hint.classList.add('shown');
+      setTimeout(() => hint.classList.add('visible'), 100);
+    }
   }
 
   // ── Filters ──────────────────────────────────────────────────────────────
