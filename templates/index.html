@@ -134,13 +134,19 @@
       margin-top: 1px;
     }
     .hdr-bangla {
-      font-size: 12px;
-      font-weight: 600;
-      margin-top: 3px;
-      background: linear-gradient(90deg, var(--primary), #e040fb);
+      font-size: 14px;
+      font-weight: 700;
+      margin-top: 4px;
+      background: linear-gradient(90deg, #38bdf8, #818cf8, #e040fb, #f472b6);
+      background-size: 200% auto;
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
+      animation: shimmer 2.5s linear infinite;
+    }
+    @keyframes shimmer {
+      0%   { background-position: 0% center; }
+      100% { background-position: 200% center; }
     }
 
     /* ── Section label ────────────────────────────────── */
