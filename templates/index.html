@@ -941,7 +941,7 @@
       columns: [
         { data:'overall_gun_rank', type:'num', render: v => v ? (parseInt(v)||99999) : 99999 },
         { data:'bib' },
-        { data:'name' },
+        { data:'name', render: v => { const w = (v||'').trim().split(/\s+/); return w.length > 2 ? w.slice(0,2).join(' ') : v; } },
         { data:'gender' },
         { data:'status', render: v => `<span class="status-${v||''}">${v||''}</span>` },
         { data:'gun_time' },
