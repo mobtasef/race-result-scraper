@@ -954,12 +954,7 @@
 
     const dt = $(`#tbl-${safeId}`).DataTable({
       columns: [
-        { data:'overall_gun_rank', type:'num', render: (v, type, row) => {
-            const g = document.getElementById('filterGender').value;
-            const val = g ? row.gender_gun_rank : v;
-            return val ? (parseInt(val)||99999) : 99999;
-          }
-        },
+        { data:'overall_gun_rank', type:'num', render: v => v ? (parseInt(v)||99999) : 99999 },
         { data:'bib' },
         { data:'name', render: v => { const w = (v||'').trim().split(/\s+/); return w.length > 2 ? w.slice(0,2).join(' ') : v; } },
         { data:'gender' },
@@ -970,6 +965,15 @@
       ],
       pageLength: 100,
       order: [[COL.overallRank,'asc']],
+      drawCallback: function() {
+        const g = document.getElementById('filterGender').value;
+        this.api().rows({page:'current'}).every(function() {
+          const row = this.data();
+          const val = g ? (row.gender_gun_rank || '') : (row.overall_gun_rank || '');
+          const td = $(this.node()).find('td:first');
+          td.text(val);
+        });
+      }
     });
     tables[eventName] = dt;
     counts[eventName] = 0;
