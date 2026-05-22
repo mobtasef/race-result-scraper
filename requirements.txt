@@ -3,3 +3,4 @@ httpx[http2]>=0.27
 beautifulsoup4>=4.12
 lxml>=5.0
 gunicorn>=21.0
+uvloop>=0.19

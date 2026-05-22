@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Race Results</title>
+  <title>Race Scraper By Mobtasim</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Outfit:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -201,6 +201,7 @@
     .f { display: flex; flex-direction: column; gap: 5px; }
     .f-url  { flex: 1 1 280px; }
     .f-num  { flex: 0 0 100px; }
+    .f-num-sm { flex: 0 0 84px; }
     .f label {
       font-size: 11px;
       font-weight: 600;
@@ -228,6 +229,30 @@
     .f input[type=number] { -moz-appearance: textfield; }
     .f input[type=number]::-webkit-outer-spin-button,
     .f input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+    .adv-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 10px;
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: var(--sans);
+      font-size: 11.5px;
+      cursor: pointer;
+      padding: 0;
+      transition: color .15s;
+    }
+    .adv-toggle:hover { color: var(--on-surface); }
+    .adv-toggle svg { transition: transform .2s; }
+    .adv-toggle.open svg { transform: rotate(180deg); }
+    #advFields {
+      display: none;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--outline-v);
+    }
 
     .btn-primary-custom {
       background: var(--primary);
@@ -622,12 +647,14 @@
 
   <header class="hdr">
     <div class="hdr-mark">
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <path d="M4 3v16M4 4h14l-3 4.5 3 4.5H4" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <circle cx="11" cy="11" r="8" stroke="var(--primary)" stroke-width="2"/>
+        <path d="M21 21l-4.35-4.35" stroke="var(--primary)" stroke-width="2" stroke-linecap="round"/>
+        <path d="M11 8v3l2 2" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </div>
     <div>
-      <div class="hdr-title">Race <span>Results</span></div>
+      <div class="hdr-title">Race <span>Scraper</span> By Mobtasim</div>
       <div class="hdr-sub">feibot.com scraper</div>
     </div>
     <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle dark mode">
@@ -651,23 +678,38 @@
         <label>Race URL</label>
         <input id="raceUrl" type="url" placeholder="https://time.feibot.com/live-wire/race-page/…">
       </div>
-      <div class="f f-num">
+      <div class="f f-num-sm">
         <label>Min Bib</label>
         <input id="minBib" type="number" value="1" min="1" max="99999">
       </div>
-      <div class="f f-num">
+      <div class="f f-num-sm">
         <label>Max Bib</label>
-        <input id="maxBib" type="number" value="9999" min="1" max="99999">
-      </div>
-      <div class="f f-num">
-        <label>Concurrency</label>
-        <input id="concurrency" type="number" value="50" min="1" max="200">
+        <input id="maxBib" type="number" value="99999" min="1" max="999999">
       </div>
       <div style="display:flex;gap:8px;align-items:flex-end">
         <button id="scrapeBtn" class="btn-primary-custom" onclick="startScrape()">Scrape</button>
         <button id="cancelBtn" class="btn-stop" style="display:none" onclick="cancelScrape()">Stop</button>
       </div>
     </div>
+
+    <button class="adv-toggle" id="advToggle" onclick="toggleAdv()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      Advanced
+    </button>
+
+    <div id="advFields">
+      <div class="fields">
+        <div class="f f-num">
+          <label>Sessions</label>
+          <input id="sessions" type="number" value="4" min="1" max="8">
+        </div>
+        <div class="f f-num">
+          <label>Concurrency</label>
+          <input id="concurrency" type="number" value="50" min="1" max="200">
+        </div>
+      </div>
+    </div>
+
     <div id="errorMsg" style="display:none"></div>
   </div>
 
@@ -839,21 +881,32 @@
     document.getElementById(id).appendChild(o);
   }
 
+  // ── Advanced toggle ──────────────────────────────────────────────────────
+  function toggleAdv() {
+    const btn = document.getElementById('advToggle');
+    const panel = document.getElementById('advFields');
+    const open = panel.style.display === 'flex' || panel.style.display === 'block';
+    panel.style.display = open ? 'none' : 'block';
+    btn.classList.toggle('open', !open);
+  }
+
   // ── Scrape ───────────────────────────────────────────────────────────────
   function startScrape() {
     const url  = document.getElementById('raceUrl').value.trim();
     const minB = parseInt(document.getElementById('minBib').value)||1;
-    const maxB = parseInt(document.getElementById('maxBib').value)||9999;
+    const maxB = parseInt(document.getElementById('maxBib').value)||99999;
     const conc = parseInt(document.getElementById('concurrency').value)||50;
+    const sess = parseInt(document.getElementById('sessions').value)||4;
     if (!url) { showError('Please enter a race URL.'); return; }
     hideError(); resetAll(); loadedFromCache = false;
     document.getElementById('progressSection').style.display = 'block';
     document.getElementById('exportBtn').style.display = 'none';
     document.getElementById('scrapeBtn').disabled = true;
     document.getElementById('cancelBtn').style.display = 'inline-block';
+    document.getElementById('progressLabel').textContent = 'Probing range…';
     setProgress(0, maxB-minB+1, 0);
     fetch('/scrape', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({url, min_bib:minB, max_bib:maxB, concurrency:conc}) })
+      body: JSON.stringify({url, min_bib:minB, max_bib:maxB, concurrency:conc, sessions:sess}) })
     .then(r=>r.json()).then(({job_id, error}) => {
       if (error) { showError(error); resetControls(); return; }
       currentJobId = job_id;
@@ -867,6 +920,9 @@
     const d = JSON.parse(e.data);
     if (d.error) { showError(d.error); evtSource.close(); resetControls(); return; }
     setProgress(d.progress, d.total, d.found);
+    if (d.progress > 0 && document.getElementById('progressLabel').textContent === 'Probing range…') {
+      document.getElementById('progressLabel').textContent = 'Scanning…';
+    }
     if (d.new_results && d.new_results.length) { updateDropdowns(d.new_results); routeResults(d.new_results); }
     if (d.done) {
       evtSource.close();

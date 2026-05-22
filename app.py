@@ -1,4 +1,3 @@
-import asyncio
 import csv
 import io
 import json
@@ -20,24 +19,20 @@ jobs_lock = threading.Lock()
 FEIBOT_URL_RE = re.compile(r"https?://time\.feibot\.com/live-wire/race-page/\d+/\S+")
 
 
-def _run_scraper_thread(job_id: str, race_url: str, min_bib: int, max_bib: int, concurrency: int) -> None:
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+def _run_scraper_thread(job_id: str, race_url: str, min_bib: int, max_bib: int, concurrency: int, sessions: int) -> None:
     try:
-        loop.run_until_complete(
-            scrape_race(
-                race_url,
-                min_bib=min_bib,
-                max_bib=max_bib,
-                concurrency=concurrency,
-                job_id=job_id,
-                jobs=jobs,
-            )
+        scrape_race(
+            race_url,
+            min_bib=min_bib,
+            max_bib=max_bib,
+            concurrency=concurrency,
+            sessions=sessions,
+            job_id=job_id,
+            jobs=jobs,
         )
         with jobs_lock:
             jobs[job_id]["status"] = "done"
 
-        # Persist to cache
         job = jobs[job_id]
         results = job["results"]
         categories = sorted({r.get("event", "") for r in results if r.get("event")})
@@ -54,8 +49,6 @@ def _run_scraper_thread(job_id: str, race_url: str, min_bib: int, max_bib: int, 
         with jobs_lock:
             jobs[job_id]["status"] = "error"
             jobs[job_id]["error"] = str(e)
-    finally:
-        loop.close()
 
 
 @app.get("/")
@@ -68,15 +61,17 @@ def start_scrape():
     body = request.get_json(silent=True) or {}
     race_url = (body.get("url") or "").strip()
     min_bib = int(body.get("min_bib") or 1)
-    max_bib = int(body.get("max_bib") or 9999)
+    max_bib = int(body.get("max_bib") or 99999)
     concurrency = int(body.get("concurrency") or 50)
+    sessions = int(body.get("sessions") or 4)
 
     if not FEIBOT_URL_RE.match(race_url):
         return jsonify({"error": "Invalid feibot race URL"}), 400
 
     min_bib = max(1, min(min_bib, 99999))
-    max_bib = max(min_bib, min(max_bib, 99999))
+    max_bib = max(min_bib, min(max_bib, 999999))
     concurrency = max(1, min(concurrency, 200))
+    sessions = max(1, min(sessions, 8))
 
     job_id = str(uuid4())
     with jobs_lock:
@@ -87,11 +82,14 @@ def start_scrape():
             "total": max_bib - min_bib + 1,
             "race_id": "",
             "cancelled": False,
+            "stop_after": max_bib,
+            "max_found_bib": 0,
+            "sessions": sessions,
         }
 
     t = threading.Thread(
         target=_run_scraper_thread,
-        args=(job_id, race_url, min_bib, max_bib, concurrency),
+        args=(job_id, race_url, min_bib, max_bib, concurrency, sessions),
         daemon=True,
     )
     t.start()

@@ -9,8 +9,15 @@ from bs4 import BeautifulSoup
 
 from parser import parse_result_html
 
+try:
+    import uvloop
+    uvloop.install()
+except ImportError:
+    pass  # Windows or uvloop not installed — default loop is fine
+
 QUERY_URL = "https://time.feibot.com/live-wire/scores/query"
 TIMEOUT = httpx.Timeout(connect=5.0, read=15.0, write=5.0, pool=5.0)
+GAP_THRESHOLD = 2000
 
 
 def _extract_race_id(race_url: str) -> str:
@@ -35,10 +42,8 @@ async def _fetch_session_and_csrf(race_url: str, client: httpx.AsyncClient) -> t
         token = inp["value"]
 
     race_id = _extract_race_id(race_url)
-
     h5 = soup.find("h5")
     race_name = h5.get_text(strip=True) if h5 else f"Race {race_id}"
-
     return token, race_id, race_name
 
 
@@ -53,8 +58,15 @@ async def _query_bib(
     lock: threading.Lock,
     retry: int = 0,
 ) -> None:
+    if bib > jobs[job_id].get("stop_after", 999999):
+        with lock:
+            jobs[job_id]["progress"] += 1
+        return
+
     async with sem:
-        if jobs[job_id].get("cancelled"):
+        if jobs[job_id].get("cancelled") or bib > jobs[job_id].get("stop_after", 999999):
+            with lock:
+                jobs[job_id]["progress"] += 1
             return
         try:
             resp = await client.post(
@@ -72,6 +84,13 @@ async def _query_bib(
                 if result:
                     with lock:
                         jobs[job_id]["results"].append(result)
+                        prev_max = jobs[job_id].get("max_found_bib", 0)
+                        if bib > prev_max:
+                            jobs[job_id]["max_found_bib"] = bib
+                            jobs[job_id]["stop_after"] = bib + GAP_THRESHOLD
+                            jobs[job_id]["total"] = min(
+                                jobs[job_id]["total"], bib + GAP_THRESHOLD
+                            )
         except (httpx.TimeoutException, httpx.ConnectError):
             if retry < 1:
                 await asyncio.sleep(0.5)
@@ -85,33 +104,86 @@ async def _query_bib(
                 jobs[job_id]["progress"] += 1
 
 
-async def scrape_race(
+async def _session_worker(
+    session_id: int,
+    bibs: list[int],
     race_url: str,
-    min_bib: int = 1,
-    max_bib: int = 9999,
-    concurrency: int = 50,
-    job_id: str | None = None,
-    jobs: dict | None = None,
-) -> list[dict]:
-    lock = threading.Lock()
+    jobs: dict,
+    job_id: str,
+    lock: threading.Lock,
+    concurrency: int,
+) -> None:
+    limits = httpx.Limits(
+        max_connections=concurrency + 5,
+        max_keepalive_connections=concurrency + 5,
+    )
     async with httpx.AsyncClient(
+        http2=False,
         timeout=TIMEOUT,
         follow_redirects=True,
-        headers={"User-Agent": "Mozilla/5.0 (compatible; RaceResultScraper/1.0)"},
+        limits=limits,
+        headers={"User-Agent": f"Mozilla/5.0 (RaceResultScraper/S{session_id})"},
     ) as client:
         csrf_token, race_id, race_name = await _fetch_session_and_csrf(race_url, client)
 
-        if job_id and jobs:
+        if session_id == 0 and job_id and jobs:
             with lock:
                 jobs[job_id]["race_id"] = race_id
                 jobs[job_id]["race_name"] = race_name
 
         sem = asyncio.Semaphore(concurrency)
-        tasks = [
+        await asyncio.gather(*[
             _query_bib(client, sem, race_id, bib, csrf_token, jobs, job_id, lock)
-            for bib in range(min_bib, max_bib + 1)
-        ]
-        await asyncio.gather(*tasks)
+            for bib in bibs
+        ])
+
+
+def _run_session(
+    session_id: int,
+    bibs: list[int],
+    race_url: str,
+    jobs: dict,
+    job_id: str,
+    lock: threading.Lock,
+    concurrency: int,
+) -> None:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(
+            _session_worker(session_id, bibs, race_url, jobs, job_id, lock, concurrency)
+        )
+    finally:
+        loop.close()
+
+
+def scrape_race(
+    race_url: str,
+    min_bib: int = 1,
+    max_bib: int = 99999,
+    concurrency: int = 50,
+    sessions: int = 4,
+    job_id: str | None = None,
+    jobs: dict | None = None,
+) -> list[dict]:
+    lock = threading.Lock()
+    all_bibs = list(range(min_bib, max_bib + 1))
+
+    # Interleave chunks: session 0 gets bibs 1,5,9…; session 1 gets 2,6,10…
+    chunks = [all_bibs[i::sessions] for i in range(sessions)]
+
+    threads = [
+        threading.Thread(
+            target=_run_session,
+            args=(i, chunks[i], race_url, jobs, job_id, lock, concurrency),
+            daemon=True,
+        )
+        for i in range(sessions)
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
 
     results = jobs[job_id]["results"] if job_id and jobs else []
 
