@@ -954,14 +954,19 @@
 
     const dt = $(`#tbl-${safeId}`).DataTable({
       columns: [
-        { data:'overall_gun_rank', type:'num', render: v => v ? (parseInt(v)||99999) : 99999 },
+        { data:'overall_gun_rank', type:'num', render: (v, type, row) => {
+            const g = document.getElementById('filterGender').value;
+            const val = g ? row.gender_gun_rank : v;
+            return val ? (parseInt(val)||99999) : 99999;
+          }
+        },
         { data:'bib' },
         { data:'name', render: v => { const w = (v||'').trim().split(/\s+/); return w.length > 2 ? w.slice(0,2).join(' ') : v; } },
         { data:'gender' },
         { data:'status', render: v => `<span class="status-${v||''}">${v||''}</span>` },
         { data:'gun_time' },
         { data:'net_time' },
-        { data:'gender_gun_rank',  type:'num', render: v => v ? (parseInt(v)||99999) : 99999 },
+        { data:'gender_gun_rank', type:'num', render: v => v ? (parseInt(v)||99999) : 99999 },
       ],
       pageLength: 100,
       order: [[COL.overallRank,'asc']],
@@ -998,7 +1003,16 @@
   }
 
   // ── Filters ──────────────────────────────────────────────────────────────
-  function applyFilters() { Object.values(tables).forEach(t => t.draw(false)); updateFilteredCount(); }
+  function applyFilters() {
+    const genderActive = !!document.getElementById('filterGender').value;
+    document.querySelectorAll('table.dataTable thead th:nth-child(1)').forEach(th => {
+      th.textContent = genderActive ? 'Gender Rank' : 'Rank';
+    });
+    Object.values(tables).forEach(t => {
+      t.order([genderActive ? COL.genderRank : COL.overallRank, 'asc']).draw(false);
+    });
+    updateFilteredCount();
+  }
   function clearFilters() {
     document.getElementById('filterGender').value = '';
     document.getElementById('filterStatus').value = '';
