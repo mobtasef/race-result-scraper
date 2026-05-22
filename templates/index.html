@@ -664,7 +664,9 @@
       table.dataTable thead th,
       table.dataTable tbody td { padding: 8px 10px !important; }
       table.dataTable tbody td { white-space: nowrap; font-size: 12px; }
-      /* Hide Gender, Status, Gender Rank on mobile */
+      /* Hide Bib, Gender, Status, Gender Rank on mobile */
+      table.dataTable thead th:nth-child(2),
+      table.dataTable tbody td:nth-child(2),
       table.dataTable thead th:nth-child(4),
       table.dataTable tbody td:nth-child(4),
       table.dataTable thead th:nth-child(5),
