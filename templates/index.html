@@ -497,53 +497,63 @@
     }
     #categoryTabs {
       display: flex;
+      flex-wrap: wrap;
       list-style: none;
-      padding: 0 12px;
+      padding: 12px 12px 0;
       margin: 0;
-      border-bottom: 1px solid var(--outline-v);
       background: var(--surf-v);
-      gap: 2px;
+      gap: 8px;
+      border-bottom: 1px solid var(--outline-v);
     }
     #categoryTabs .nav-item { list-style: none; }
     #categoryTabs .nav-link {
-      display: block;
-      background: none;
-      border: none;
-      border-bottom: 2.5px solid transparent;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface);
+      border: 2px solid var(--outline);
+      border-bottom: none;
+      border-radius: 10px 10px 0 0;
       color: var(--muted);
       font-family: var(--display);
-      font-size: 13px;
-      font-weight: 600;
+      font-size: 14px;
+      font-weight: 700;
       letter-spacing: .02em;
-      padding: 11px 16px 9px;
+      padding: 10px 20px 12px;
       cursor: pointer;
-      transition: color .15s, border-color .15s;
-      margin-bottom: -1px;
+      transition: color .15s, border-color .15s, background .15s;
       white-space: nowrap;
+      position: relative;
+      bottom: -1px;
     }
-    #categoryTabs .nav-link:hover { color: var(--on-surface); }
+    #categoryTabs .nav-link:hover {
+      color: var(--on-surface);
+      border-color: var(--primary);
+      background: var(--surf-v);
+    }
     #categoryTabs .nav-link.active {
       color: var(--primary);
-      border-bottom-color: var(--primary);
+      border-color: var(--primary);
+      background: var(--surface);
+      box-shadow: 0 -3px 0 0 var(--primary) inset;
     }
     .tcnt {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      background: var(--outline-v);
+      background: var(--gray-c);
       border-radius: 20px;
       font-family: var(--mono);
-      font-size: 10px;
-      font-weight: 500;
+      font-size: 11px;
+      font-weight: 600;
       color: var(--muted);
-      padding: 0 7px;
-      min-width: 22px;
-      height: 18px;
-      margin-left: 7px;
+      padding: 0 8px;
+      min-width: 24px;
+      height: 20px;
     }
     #categoryTabs .nav-link.active .tcnt {
-      background: var(--primary-c);
-      color: var(--primary);
+      background: var(--primary);
+      color: #fff;
     }
 
     .tab-pane { display: none; }
