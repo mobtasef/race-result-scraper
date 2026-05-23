@@ -816,7 +816,7 @@
       </div>
       <div class="f f-num-sm">
         <label>Min Bib</label>
-        <input id="minBib" type="number" value="1" min="1" max="99999">
+        <input id="minBib" type="number" value="1" min="1" max="999999">
       </div>
       <div class="f f-num-sm">
         <label>Max Bib</label>
@@ -827,6 +827,12 @@
         <button id="cancelBtn" class="btn-stop" style="display:none" onclick="cancelScrape()">Stop</button>
       </div>
     </div>
+
+    <div id="extraRanges"></div>
+    <button class="adv-toggle" style="margin-top:6px" onclick="addRange()">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add bib range
+    </button>
 
     <button class="adv-toggle" id="advToggle" onclick="toggleAdv()">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
@@ -1062,6 +1068,22 @@
     btn.classList.toggle('open', !open);
   }
 
+  // ── Extra bib ranges ─────────────────────────────────────────────────────
+  let rangeCount = 0;
+  function addRange() {
+    rangeCount++;
+    const id = rangeCount;
+    const div = document.createElement('div');
+    div.className = 'fields'; div.id = `range-${id}`; div.style.marginTop = '8px';
+    div.innerHTML = `
+      <div class="f f-num-sm"><label>Min Bib ${id+1}</label><input id="minBib${id}" type="number" min="1" max="999999" placeholder="e.g. 45000"></div>
+      <div class="f f-num-sm"><label>Max Bib ${id+1}</label><input id="maxBib${id}" type="number" min="1" max="999999" placeholder="e.g. 45999"></div>
+      <div style="display:flex;align-items:flex-end">
+        <button class="adv-toggle" style="color:var(--red)" onclick="document.getElementById('range-${id}').remove()">✕ Remove</button>
+      </div>`;
+    document.getElementById('extraRanges').appendChild(div);
+  }
+
   // ── Scrape ───────────────────────────────────────────────────────────────
   function startScrape() {
     const url  = document.getElementById('raceUrl').value.trim();
@@ -1070,15 +1092,28 @@
     const conc = parseInt(document.getElementById('concurrency').value)||50;
     const sess = parseInt(document.getElementById('sessions').value)||4;
     if (!url) { showError('Please enter a race URL.'); return; }
+
+    // Collect extra ranges
+    const extraRangeEls = document.getElementById('extraRanges').querySelectorAll('.fields');
+    const bibRanges = [[minB, maxB]];
+    extraRangeEls.forEach((_, i) => {
+      const lo = parseInt(document.getElementById(`minBib${i+1}`)?.value);
+      const hi = parseInt(document.getElementById(`maxBib${i+1}`)?.value);
+      if (lo && hi) bibRanges.push([lo, hi]);
+    });
+    const totalBibs = bibRanges.reduce((s,[a,b])=>s+(b-a+1),0);
+
     hideError(); resetAll(); loadedFromCache = false;
     document.getElementById('progressSection').style.display = 'block';
     document.getElementById('exportBtn').style.display = 'none';
     document.getElementById('scrapeBtn').disabled = true;
     document.getElementById('cancelBtn').style.display = 'inline-block';
     document.getElementById('progressLabel').textContent = 'Probing range…';
-    setProgress(0, maxB-minB+1, 0);
+    setProgress(0, totalBibs, 0);
+    const payload = {url, min_bib:minB, max_bib:maxB, concurrency:conc, sessions:sess};
+    if (bibRanges.length > 1) payload.bib_ranges = bibRanges;
     fetch('/scrape', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({url, min_bib:minB, max_bib:maxB, concurrency:conc, sessions:sess}) })
+      body: JSON.stringify(payload) })
     .then(r=>r.json()).then(({job_id, error}) => {
       if (error) { showError(error); resetControls(); return; }
       currentJobId = job_id;

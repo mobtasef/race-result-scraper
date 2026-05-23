@@ -165,9 +165,19 @@ def scrape_race(
     sessions: int = 4,
     job_id: str | None = None,
     jobs: dict | None = None,
+    bib_ranges=None,
 ) -> list[dict]:
     lock = threading.Lock()
-    all_bibs = list(range(min_bib, max_bib + 1))
+    if bib_ranges:
+        seen = set()
+        all_bibs = []
+        for lo, hi in bib_ranges:
+            for b in range(lo, hi + 1):
+                if b not in seen:
+                    seen.add(b)
+                    all_bibs.append(b)
+    else:
+        all_bibs = list(range(min_bib, max_bib + 1))
 
     # Interleave chunks: session 0 gets bibs 1,5,9…; session 1 gets 2,6,10…
     chunks = [all_bibs[i::sessions] for i in range(sessions)]

@@ -19,7 +19,7 @@ jobs_lock = threading.Lock()
 FEIBOT_URL_RE = re.compile(r"https?://time\.feibot\.com/live-wire/race-page/\d+/\S+")
 
 
-def _run_scraper_thread(job_id: str, race_url: str, min_bib: int, max_bib: int, concurrency: int, sessions: int) -> None:
+def _run_scraper_thread(job_id: str, race_url: str, min_bib: int, max_bib: int, concurrency: int, sessions: int, bib_ranges=None) -> None:
     try:
         scrape_race(
             race_url,
@@ -29,6 +29,7 @@ def _run_scraper_thread(job_id: str, race_url: str, min_bib: int, max_bib: int, 
             sessions=sessions,
             job_id=job_id,
             jobs=jobs,
+            bib_ranges=bib_ranges,
         )
         with jobs_lock:
             jobs[job_id]["status"] = "done"
@@ -64,32 +65,42 @@ def start_scrape():
     max_bib = int(body.get("max_bib") or 99999)
     concurrency = int(body.get("concurrency") or 50)
     sessions = int(body.get("sessions") or 4)
+    raw_ranges = body.get("bib_ranges")  # [[min1,max1],[min2,max2],...]
 
     if not FEIBOT_URL_RE.match(race_url):
         return jsonify({"error": "Invalid feibot race URL"}), 400
 
-    min_bib = max(1, min(min_bib, 99999))
-    max_bib = max(min_bib, min(max_bib, 999999))
+    bib_ranges = None
+    total_bibs = 0
+    if raw_ranges and isinstance(raw_ranges, list) and len(raw_ranges) > 1:
+        bib_ranges = [(max(1, int(r[0])), min(999999, int(r[1]))) for r in raw_ranges if len(r) == 2]
+        total_bibs = sum(hi - lo + 1 for lo, hi in bib_ranges)
+    else:
+        min_bib = max(1, min(min_bib, 99999))
+        max_bib = max(min_bib, min(max_bib, 999999))
+        total_bibs = max_bib - min_bib + 1
+
     concurrency = max(1, min(concurrency, 200))
     sessions = max(1, min(sessions, 8))
 
     job_id = str(uuid4())
+    stop_after = max_bib if not bib_ranges else max(hi for _, hi in bib_ranges)
     with jobs_lock:
         jobs[job_id] = {
             "status": "running",
             "results": [],
             "progress": 0,
-            "total": max_bib - min_bib + 1,
+            "total": total_bibs,
             "race_id": "",
             "cancelled": False,
-            "stop_after": max_bib,
+            "stop_after": stop_after,
             "max_found_bib": 0,
             "sessions": sessions,
         }
 
     t = threading.Thread(
         target=_run_scraper_thread,
-        args=(job_id, race_url, min_bib, max_bib, concurrency, sessions),
+        args=(job_id, race_url, min_bib, max_bib, concurrency, sessions, bib_ranges),
         daemon=True,
     )
     t.start()
